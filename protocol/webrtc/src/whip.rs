@@ -41,10 +41,10 @@ pub type Result<T> = std::result::Result<T, WebRTCError>;
 //     pub const NO_IDR_FRAME: u8 = 0x01; //0x41 B/P frame
 // }
 
-mod nal_payload_type {
-    pub const H264: u8 = 96;
-    pub const OPUS: u8 = 111;
-}
+// mod nal_payload_type {
+//     pub const H264: u8 = 96;
+//     pub const OPUS: u8 = 111;
+// }
 
 pub(crate) fn parse_rtpmap(rtpmap: &str) -> Result<Codec> {
     // a=rtpmap:<payload type> <encoding name>/<clock rate>[/<encoding parameters>]
@@ -181,7 +181,9 @@ pub async fn handle_whip(
             let mut opus_packet = OpusPacket;
 
             let mut video_codec = Codec::default();
+            let mut h264_pt: Vec<u8> = Vec::new();
             let mut audio_codec = Codec::default();
+            let mut opus_pt: Vec<u8> = Vec::new();
             let mut vcodec: VideoCodecType = VideoCodecType::H264;
             let mut opus2aac_transcoder = Opus2AacTranscoder::new(
                 48000,
@@ -202,6 +204,7 @@ pub async fn handle_whip(
                                 log::info!("codec: {}", codec);
                                 match codec.name.as_str() {
                                     "H264" => {
+                                        h264_pt.push(codec.payload_type);
                                         video_codec = codec;
                                     }
                                     "H265" => {
@@ -209,6 +212,7 @@ pub async fn handle_whip(
                                         vcodec = VideoCodecType::H265;
                                     }
                                     "OPUS" => {
+                                        opus_pt.push(codec.payload_type);
                                         audio_codec = codec;
                                         let channels =
                                             match audio_codec.encoding_parameters.as_str() {
@@ -258,108 +262,104 @@ pub async fn handle_whip(
             while let Ok((rtp_packet, _)) = track.read(&mut b).await {
                 let n = rtp_packet.marshal_to(&mut b)?;
 
-                match rtp_packet.header.payload_type {
+                if h264_pt.contains(&rtp_packet.header.payload_type) {
                     //video h264
-                    nal_payload_type::H264 => {
-                        let video_packet = PacketData::Video {
-                            timestamp: rtp_packet.header.timestamp,
-                            data: BytesMut::from(&b[..n]),
-                        };
-                        if let Err(err) = packet_sender_clone.send(video_packet) {
-                            log::error!("send video packet error: {}", err);
-                        }
-
-                        rtp_queue.write_queue(rtp_packet);
-
-                        while let Some(rtp_packet_ordered) = rtp_queue.read_queue() {
-                            match h264_packet.depacketize(&rtp_packet_ordered.payload) {
-                                Ok(rv) => {
-                                    if !rv.is_empty() {
-                                        let byte_array = rv.to_vec();
-                                        let nal_type = byte_array[4] & 0x1F;
-
-                                        if nal_type != 0x0C {
-                                            let video_frame = FrameData::Video {
-                                                timestamp: rtp_packet_ordered.header.timestamp,
-                                                data: BytesMut::from(&byte_array[..]),
-                                            };
-
-                                            if let Err(err) = frame_sender_clone.send(video_frame) {
-                                                log::error!("send video frame error: {}", err);
-                                            } else {
-                                                // log::info!("send video frame suceess: {}", nal_type);
-                                            }
-                                        }
-                                    }
-                                }
-                                Err(_err) => {
-                                    // log::error!("The h264 packet payload err:{}", err);
-                                    // let hex_string = hex::encode(b.to_vec());
-                                    // log::error!(
-                                    //     "The h264 packet payload err string :{}",
-                                    //     hex_string
-                                    // );
-                                }
-                            }
-                        }
+                    let video_packet = PacketData::Video {
+                        timestamp: rtp_packet.header.timestamp,
+                        data: BytesMut::from(&b[..n]),
+                    };
+                    if let Err(err) = packet_sender_clone.send(video_packet) {
+                        log::error!("send video packet error: {}", err);
                     }
-                    //aac 111(opus)
-                    nal_payload_type::OPUS => {
-                        let audio_packet = PacketData::Audio {
-                            timestamp: rtp_packet.header.timestamp,
-                            data: BytesMut::from(&b[..n]),
-                        };
-                        if let Err(err) = packet_sender_clone.send(audio_packet) {
-                            log::error!("send audio packet error: {}", err);
-                        }
 
-                        if !aac_asc_sent {
-                            if let Ok(aac) = Mpeg4Aac::new(2, 48000, 2) {
-                                if let Ok(asc) = aac.gen_audio_specific_config() {
-                                    let audio_frame = FrameData::Audio {
-                                        timestamp: 0,
-                                        data: asc,
-                                    };
-                                    if let Err(err) = frame_sender_clone.send(audio_frame) {
-                                        log::error!("send audio frame error: {}", err);
-                                    }
-                                }
-                            }
-                            aac_asc_sent = true;
-                        }
+                    rtp_queue.write_queue(rtp_packet);
 
-                        match opus_packet.depacketize(&rtp_packet.payload) {
+                    while let Some(rtp_packet_ordered) = rtp_queue.read_queue() {
+                        match h264_packet.depacketize(&rtp_packet_ordered.payload) {
                             Ok(rv) => {
                                 if !rv.is_empty() {
-                                    // log::info!("audio timestamp: {}", rtp_packet.header.timestamp);
                                     let byte_array = rv.to_vec();
-                                    match opus2aac_transcoder.transcode(&byte_array) {
-                                        Ok(data) => {
-                                            for data_val in data {
-                                                let audio_frame = FrameData::Audio {
-                                                    timestamp: rtp_packet.header.timestamp,
-                                                    data: BytesMut::from(&data_val[..]),
-                                                };
+                                    let nal_type = byte_array[4] & 0x1F;
 
-                                                if let Err(err) =
-                                                    frame_sender_clone.send(audio_frame)
-                                                {
-                                                    log::error!("send audio frame error: {}", err);
-                                                } else {
-                                                    // log::info!("send aidop frame suceess");
-                                                }
-                                            }
-                                        }
-                                        Err(err) => {
-                                            log::error!("opus2aac transcode error: {:?}", err);
+                                    if nal_type != 0x0C {
+                                        let video_frame = FrameData::Video {
+                                            timestamp: rtp_packet_ordered.header.timestamp,
+                                            data: BytesMut::from(&byte_array[..]),
+                                        };
+
+                                        if let Err(err) = frame_sender_clone.send(video_frame) {
+                                            log::error!("send video frame error: {}", err);
+                                        } else {
+                                            // log::info!("send video frame suceess: {}", nal_type);
                                         }
                                     }
                                 }
                             }
-                            Err(_err) => {}
+                            Err(_err) => {
+                                // log::error!("The h264 packet payload err:{}", err);
+                                // let hex_string = hex::encode(b.to_vec());
+                                // log::error!(
+                                //     "The h264 packet payload err string :{}",
+                                //     hex_string
+                                // );
+                            }
                         }
                     }
-                    _ => {}
+                } else if opus_pt.contains(&rtp_packet.header.payload_type) {
+                    //aac 111(opus)
+                    let audio_packet = PacketData::Audio {
+                        timestamp: rtp_packet.header.timestamp,
+                        data: BytesMut::from(&b[..n]),
+                    };
+                    if let Err(err) = packet_sender_clone.send(audio_packet) {
+                        log::error!("send audio packet error: {}", err);
+                    }
+
+                    if !aac_asc_sent {
+                        if let Ok(aac) = Mpeg4Aac::new(2, 48000, 2) {
+                            if let Ok(asc) = aac.gen_audio_specific_config() {
+                                let audio_frame = FrameData::Audio {
+                                    timestamp: 0,
+                                    data: asc,
+                                };
+                                if let Err(err) = frame_sender_clone.send(audio_frame) {
+                                    log::error!("send audio frame error: {}", err);
+                                }
+                            }
+                        }
+                        aac_asc_sent = true;
+                    }
+
+                    match opus_packet.depacketize(&rtp_packet.payload) {
+                        Ok(rv) => {
+                            if !rv.is_empty() {
+                                // log::info!("audio timestamp: {}", rtp_packet.header.timestamp);
+                                let byte_array = rv.to_vec();
+                                match opus2aac_transcoder.transcode(&byte_array) {
+                                    Ok(data) => {
+                                        for data_val in data {
+                                            let audio_frame = FrameData::Audio {
+                                                timestamp: rtp_packet.header.timestamp,
+                                                data: BytesMut::from(&data_val[..]),
+                                            };
+
+                                            if let Err(err) =
+                                                frame_sender_clone.send(audio_frame)
+                                            {
+                                                log::error!("send audio frame error: {}", err);
+                                            } else {
+                                                // log::info!("send aidop frame suceess");
+                                            }
+                                        }
+                                    }
+                                    Err(err) => {
+                                        log::error!("opus2aac transcode error: {:?}", err);
+                                    }
+                                }
+                            }
+                        }
+                        Err(_err) => {}
+                    }
                 }
             }
 
