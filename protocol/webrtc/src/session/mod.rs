@@ -36,6 +36,7 @@ use bytesio::bytes_writer::AsyncBytesWriter;
 use errors::SessionError;
 use errors::SessionErrorValue;
 use http::StatusCode;
+use webrtc::ice::udp_network::UDPNetwork;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::{sdp::session_description::RTCSessionDescription, RTCPeerConnection};
 
@@ -52,10 +53,12 @@ pub struct WebRTCServerSession {
     pub peer_connection: Option<Arc<RTCPeerConnection>>,
 
     auth: Option<Auth>,
+    udp_network: UDPNetwork,
 }
 
 impl WebRTCServerSession {
     pub fn new(
+        udp_network: UDPNetwork,
         stream: TcpStream,
         event_producer: StreamHubEventSender,
         auth: Option<Auth>,
@@ -73,6 +76,7 @@ impl WebRTCServerSession {
             http_request_data: None,
             peer_connection: None,
             auth,
+            udp_network
         }
     }
 
@@ -293,7 +297,7 @@ impl WebRTCServerSession {
 
         let sender = event_result_receiver.await??;
 
-        let response = match handle_whip(offer, sender.0, sender.1).await {
+        let response = match handle_whip(self.udp_network.clone(), offer, sender.0, sender.1).await {
             Ok((session_description, peer_connection)) => {
                 self.peer_connection = Some(peer_connection);
 
@@ -371,7 +375,7 @@ impl WebRTCServerSession {
 
         let (pc_state_sender, mut pc_state_receiver) = broadcast::channel(1);
 
-        let response = match handle_whep(offer, receiver, pc_state_sender).await {
+        let response = match handle_whep(self.udp_network.clone(), offer, receiver, pc_state_sender).await {
             Ok((session_description, peer_connection)) => {
                 let pc_clone = peer_connection.clone();
 

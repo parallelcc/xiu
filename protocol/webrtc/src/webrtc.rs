@@ -11,6 +11,8 @@ use streamhub::utils::Uuid;
 use tokio::io::Error;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
+use webrtc::ice::udp_mux::{UDPMuxDefault, UDPMuxParams};
+use webrtc::ice::udp_network::UDPNetwork;
 
 pub struct WebRTCServer {
     address: String,
@@ -34,9 +36,18 @@ impl WebRTCServer {
         let listener = TcpListener::bind(socket_addr).await?;
 
         log::info!("WebRTC server listening on tcp://{}", socket_addr);
+
+        let udp_network = UDPNetwork::Muxed(
+            UDPMuxDefault::new(
+                UDPMuxParams::new(
+                    tokio::net::UdpSocket::bind("0.0.0.0:52000").await.unwrap()
+                )
+            )
+        );
         loop {
             let (tcp_stream, _) = listener.accept().await?;
             let session = Arc::new(Mutex::new(WebRTCServerSession::new(
+                udp_network.clone(),
                 tcp_stream,
                 self.event_producer.clone(),
                 self.auth.clone(),

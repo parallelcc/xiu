@@ -17,6 +17,9 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
 use tokio::sync::broadcast;
+use webrtc::api::setting_engine::SettingEngine;
+use webrtc::ice::network_type::NetworkType::Udp4;
+use webrtc::ice::udp_network::UDPNetwork;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocal;
@@ -26,6 +29,7 @@ pub type Result<T> = std::result::Result<T, WebRTCError>;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 
 pub async fn handle_whep(
+    udp_network: UDPNetwork,
     offer: RTCSessionDescription,
     mut receiver: PacketDataReceiver,
     state_sender: broadcast::Sender<RTCPeerConnectionState>,
@@ -36,6 +40,11 @@ pub async fn handle_whep(
     let mut m = MediaEngine::default();
 
     m.register_default_codecs()?;
+
+    // UDP Mux
+    let mut settings = SettingEngine::default();
+    settings.set_udp_network(udp_network);
+    settings.set_network_types(vec![Udp4]);
 
     // Create a InterceptorRegistry. This is the user configurable RTP/RTCP Pipeline.
     // This provides NACKs, RTCP Reports and other features. If you use `webrtc.NewPeerConnection`
@@ -49,6 +58,7 @@ pub async fn handle_whep(
     // Create the API object with the MediaEngine
     let api = APIBuilder::new()
         .with_media_engine(m)
+        .with_setting_engine(settings)
         .with_interceptor_registry(registry)
         .build();
 

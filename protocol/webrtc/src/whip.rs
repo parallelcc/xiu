@@ -13,6 +13,9 @@ use tokio::time::Duration;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
+use webrtc::api::setting_engine::SettingEngine;
+use webrtc::ice::network_type::NetworkType::Udp4;
+use webrtc::ice::udp_network::UDPNetwork;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
@@ -87,6 +90,7 @@ pub(crate) fn parse_rtpmap(rtpmap: &str) -> Result<Codec> {
 }
 
 pub async fn handle_whip(
+    udp_network: UDPNetwork,
     offer: RTCSessionDescription,
     frame_sender: Option<UnboundedSender<FrameData>>,
     packet_sender: Option<UnboundedSender<PacketData>>,
@@ -95,6 +99,11 @@ pub async fn handle_whip(
     let mut m = MediaEngine::default();
 
     m.register_default_codecs()?;
+
+    // UDP Mux
+    let mut settings = SettingEngine::default();
+    settings.set_udp_network(udp_network);
+    settings.set_network_types(vec![Udp4]);
 
     // Create a InterceptorRegistry. This is the user configurable RTP/RTCP Pipeline.
     // This provides NACKs, RTCP Reports and other features. If you use `webrtc.NewPeerConnection`
@@ -108,6 +117,7 @@ pub async fn handle_whip(
     // Create the API object with the MediaEngine
     let api = APIBuilder::new()
         .with_media_engine(m)
+        .with_setting_engine(settings)
         .with_interceptor_registry(registry)
         .build();
 
@@ -211,7 +221,7 @@ pub async fn handle_whip(
                                         video_codec = codec;
                                         vcodec = VideoCodecType::H265;
                                     }
-                                    "OPUS" => {
+                                    "opus" => {
                                         opus_pt.push(codec.payload_type);
                                         audio_codec = codec;
                                         let channels =
