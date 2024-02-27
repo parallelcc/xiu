@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use super::errors::WebRTCError;
 use super::errors::WebRTCErrorValue;
 
@@ -45,6 +46,14 @@ pub async fn handle_whep(
     let mut settings = SettingEngine::default();
     settings.set_udp_network(udp_network);
     settings.set_network_types(vec![Udp4]);
+    settings.set_ip_filter(Box::new(|ip : IpAddr| -> bool {
+        if let IpAddr::V4(ipv4) = ip {
+            if ipv4.is_private() {
+                return false
+            }
+        }
+        true
+    }));
 
     // Create a InterceptorRegistry. This is the user configurable RTP/RTCP Pipeline.
     // This provides NACKs, RTCP Reports and other features. If you use `webrtc.NewPeerConnection`
