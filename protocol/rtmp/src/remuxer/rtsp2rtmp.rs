@@ -72,8 +72,8 @@ impl Rtsp2RtmpRemuxerSession {
             data_receiver: data_consumer,
             event_producer: event_producer.clone(),
 
-            subscribe_id: Uuid::new(RandomDigitCount::Four),
-            publishe_id: Uuid::new(RandomDigitCount::Four),
+            subscribe_id: Uuid::new(None, RandomDigitCount::Four),
+            publishe_id: Uuid::new(None, RandomDigitCount::Four),
             video_clock_rate: 1000,
             audio_clock_rate: 1000,
             base_audio_timestamp: 0,

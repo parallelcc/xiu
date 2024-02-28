@@ -46,7 +46,7 @@ impl HttpFlv {
         remote_addr: SocketAddr,
     ) -> Self {
         let (_, data_consumer) = mpsc::unbounded_channel();
-        let subscriber_id = Uuid::new(RandomDigitCount::Four);
+        let subscriber_id = Uuid::new(None, RandomDigitCount::Four);
 
         Self {
             app_name,

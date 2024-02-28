@@ -99,7 +99,7 @@ impl ServerSession {
                 SessionType::Server,
                 remote_addr,
             ),
-            session_id: Uuid::new(RandomDigitCount::Four),
+            session_id: Uuid::new(None, RandomDigitCount::Four),
             bytesio_data: BytesMut::new(),
             has_remaing_data: false,
             connect_properties: ConnectProperties::default(),

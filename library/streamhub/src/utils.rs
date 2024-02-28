@@ -51,16 +51,18 @@ impl Uuid {
             random_count,
         })
     }
-    pub fn new(random_digit_count: RandomDigitCount) -> Self {
-        let duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
-        let seconds = match duration {
-            Ok(result) => result.as_secs(),
-            _ => 0,
-        };
+    pub fn new(preset_value: Option<u64>, random_digit_count: RandomDigitCount) -> Self {
+        let base_value = preset_value.unwrap_or_else(|| {
+            let duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
+            match duration {
+                Ok(result) => result.as_secs(),
+                _ => 0,
+            }
+        });
 
-        let seconds_str = seconds.to_string();
+        let value_str = base_value.to_string();
         let mut value: [char; 16] = ['\0'; 16];
-        for (i, c) in seconds_str.chars().enumerate() {
+        for (i, c) in value_str.chars().enumerate() {
             if i >= 10 {
                 break;
             }
@@ -113,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_uuid() {
-        let id = Uuid::new(super::RandomDigitCount::Four);
+        let id = Uuid::new(None, super::RandomDigitCount::Four);
 
         let s = id.to_string();
 

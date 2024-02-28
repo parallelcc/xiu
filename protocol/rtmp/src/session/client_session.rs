@@ -110,7 +110,7 @@ impl ClientSession {
         let tcp_io: Box<dyn TNetIO + Send + Sync> = Box::new(TcpIO::new(stream));
         let net_io = Arc::new(Mutex::new(tcp_io));
 
-        let subscriber_id = Uuid::new(RandomDigitCount::Four);
+        let subscriber_id = Uuid::new(None, RandomDigitCount::Four);
 
         let packetizer = if client_type == ClientType::Publish {
             Some(ChunkPacketizer::new(Arc::clone(&net_io)))

@@ -350,7 +350,7 @@ impl RtspServerSession {
 
             if let Some(transport_data) = rtsp_request.get_header(&"Transport".to_string()) {
                 if self.session_id.is_none() {
-                    self.session_id = Some(Uuid::new(RandomDigitCount::Zero));
+                    self.session_id = Some(Uuid::new(None, RandomDigitCount::Zero));
                 }
 
                 let transport = RtspTransport::unmarshal(transport_data);
@@ -683,7 +683,7 @@ impl RtspServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Zero)
+            Uuid::new(None, RandomDigitCount::Zero)
         };
 
         SubscriberInfo {
@@ -701,7 +701,7 @@ impl RtspServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Zero)
+            Uuid::new(None, RandomDigitCount::Zero)
         };
 
         PublisherInfo {

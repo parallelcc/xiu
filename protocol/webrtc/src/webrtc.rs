@@ -44,7 +44,9 @@ impl WebRTCServer {
                 )
             )
         );
+        let mut global_cnt = 0;
         loop {
+            global_cnt += 1;
             let (tcp_stream, _) = listener.accept().await?;
             let session = Arc::new(Mutex::new(WebRTCServerSession::new(
                 udp_network.clone(),
@@ -53,9 +55,10 @@ impl WebRTCServer {
                 self.auth.clone(),
             )));
             let uuid_2_sessions = self.uuid_2_sessions.clone();
+            let cnt = global_cnt;
             tokio::spawn(async move {
                 let mut session_unlock = session.lock().await;
-                if let Err(err) = session_unlock.run(uuid_2_sessions.clone()).await {
+                if let Err(err) = session_unlock.run(uuid_2_sessions.clone(), cnt).await {
                     log::error!("session run error, err: {}", err);
                 }
 

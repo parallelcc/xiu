@@ -90,6 +90,7 @@ impl WebRTCServerSession {
     pub async fn run(
         &mut self,
         uuid_2_sessions: Arc<Mutex<HashMap<Uuid, Arc<Mutex<WebRTCServerSession>>>>>,
+        cnt: u64,
     ) -> Result<(), SessionError> {
         let mut header_end_idx = 0;
         let mut content_length = 0;
@@ -168,7 +169,7 @@ impl WebRTCServerSession {
                             value: errors::SessionErrorValue::HttpRequestEmptySdp,
                         });
                     };
-                    self.session_id = Some(Uuid::new(RandomDigitCount::Four));
+                    self.session_id = Some(Uuid::new(Some(cnt), RandomDigitCount::Four));
 
                     let path = format!(
                         "{}?{}&session_id={}",
@@ -466,7 +467,7 @@ impl WebRTCServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Four)
+            Uuid::new(None, RandomDigitCount::Four)
         };
 
         SubscriberInfo {
@@ -484,7 +485,7 @@ impl WebRTCServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Four)
+            Uuid::new(None, RandomDigitCount::Four)
         };
 
         PublisherInfo {
