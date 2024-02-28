@@ -91,27 +91,32 @@ impl WebRTCServerSession {
         &mut self,
         uuid_2_sessions: Arc<Mutex<HashMap<Uuid, Arc<Mutex<WebRTCServerSession>>>>>,
     ) -> Result<(), SessionError> {
-        while self.reader.len() < 4 {
+        let mut header_end_idx = 0;
+        let mut content_length = 0;
+
+        let request_data = loop {
             let data = self.io.lock().await.read().await?;
             self.reader.extend_from_slice(&data[..]);
-        }
-
-        let mut remaining_data = self.reader.get_remaining_bytes();
-
-        if let Some(content_length) = parse_content_length(std::str::from_utf8(&remaining_data)?) {
-            while remaining_data.len() < content_length as usize {
+            let remaining_data = self.reader.get_remaining_bytes();
+            if header_end_idx == 0 {
+                let remaining_str = std::str::from_utf8(&remaining_data)?;
+                if let Some(idx) = remaining_str.find("\r\n\r\n") {
+                    header_end_idx = idx + 4;
+                    content_length = parse_content_length(remaining_str).unwrap_or_default();
+                } else {
+                    continue
+                }
+            }
+            if remaining_data.len() - header_end_idx < content_length as usize {
                 log::trace!(
                     "content_length: {} {}",
                     content_length,
-                    remaining_data.len()
+                    remaining_data.len() - header_end_idx
                 );
-                let data = self.io.lock().await.read().await?;
-                self.reader.extend_from_slice(&data[..]);
-                remaining_data = self.reader.get_remaining_bytes();
+                continue
             }
-        }
-
-        let request_data = self.reader.extract_remaining_bytes();
+            break self.reader.extract_remaining_bytes()
+        };
 
         if let Some(http_request) = HttpRequest::unmarshal(std::str::from_utf8(&request_data)?) {
             //POST /whip?app=live&stream=test HTTP/1.1
