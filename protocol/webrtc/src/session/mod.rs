@@ -168,7 +168,7 @@ impl WebRTCServerSession {
                             value: errors::SessionErrorValue::HttpRequestEmptySdp,
                         });
                     };
-                    self.session_id = Some(Uuid::new(RandomDigitCount::Zero));
+                    self.session_id = Some(Uuid::new(RandomDigitCount::Four));
 
                     let path = format!(
                         "{}?{}&session_id={}",
@@ -466,7 +466,7 @@ impl WebRTCServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Zero)
+            Uuid::new(RandomDigitCount::Four)
         };
 
         SubscriberInfo {
@@ -484,7 +484,7 @@ impl WebRTCServerSession {
         let id = if let Some(session_id) = &self.session_id {
             *session_id
         } else {
-            Uuid::new(RandomDigitCount::Zero)
+            Uuid::new(RandomDigitCount::Four)
         };
 
         PublisherInfo {
